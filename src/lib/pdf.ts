@@ -1,38 +1,117 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import type { AuditEntry, Borrower, ContractDoc } from './types';
+import { fakeSha, formatDate } from './cn';
 
-function fakeOtpHash(otp: string): string {
-  let h = 0;
-  for (let i = 0; i < otp.length; i++) {
-    h = (h << 5) - h + otp.charCodeAt(i);
-    h |= 0;
-  }
-  const hex = (h >>> 0).toString(16).padStart(8, '0');
-  return `sha256:demo:${hex}${hex}${hex}${hex}`.slice(0, 24);
-}
-
-export function sanitizeFilename(s: string): string {
-  return s
-    .replace(/[\/\\?%*:|"<>]/g, '')
-    .replace(/\s+/g, '_')
-    .slice(0, 80);
-}
-
-export async function renderContractPdf(opts: {
+interface RenderArgs {
   node: HTMLElement;
   borrower: Borrower;
   doc: ContractDoc;
   audit: AuditEntry;
-}): Promise<Blob> {
-  const { node, borrower, doc, audit } = opts;
+}
 
-  try {
-    if ('fonts' in document) {
-      await (document as Document & { fonts: { ready: Promise<void> } }).fonts.ready;
+const NAVY: [number, number, number] = [11, 37, 69];
+const GOLD: [number, number, number] = [201, 169, 97];
+const RED: [number, number, number] = [200, 40, 40];
+
+function sanitize(name: string): string {
+  return name.replace(/[^\p{L}\p{N}\-_ ]+/gu, '').replace(/\s+/g, '_').slice(0, 80);
+}
+
+function drawWatermark(pdf: jsPDF, pageW: number, pageH: number) {
+  const anyPdf = pdf as unknown as {
+    saveGraphicsState?: () => void;
+    restoreGraphicsState?: () => void;
+    setGState?: (g: unknown) => void;
+    GState?: new (o: { opacity: number }) => unknown;
+  };
+  anyPdf.saveGraphicsState?.();
+  if (anyPdf.setGState && anyPdf.GState) {
+    anyPdf.setGState(new anyPdf.GState({ opacity: 0.14 }));
+  }
+  pdf.setTextColor(RED[0], RED[1], RED[2]);
+  pdf.setFontSize(48);
+  pdf.setFont('helvetica', 'bold');
+  const cx = pageW / 2;
+  const cy = pageH / 2;
+  pdf.text('DEMO — NOT LEGALLY BINDING', cx, cy, {
+    align: 'center',
+    baseline: 'middle',
+    angle: 30,
+  });
+  anyPdf.restoreGraphicsState?.();
+}
+
+function drawHeader(pdf: jsPDF, pageW: number, doc: ContractDoc) {
+  pdf.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+  pdf.rect(0, 0, pageW, 60, 'F');
+  pdf.setTextColor(GOLD[0], GOLD[1], GOLD[2]);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(16);
+  pdf.text('JYAD CAPITAL', 36, 26);
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(9);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('Internal Signing Platform — DEMO', 36, 42);
+  pdf.setFontSize(8);
+  const right = `Doc ${doc.id}   |   Phase ${doc.phase}`;
+  pdf.text(right, pageW - 36, 42, { align: 'right' });
+}
+
+function drawFooter(
+  pdf: jsPDF,
+  pageW: number,
+  pageH: number,
+  borrower: Borrower,
+  audit: AuditEntry,
+) {
+  const startY = pageH - 150;
+  pdf.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
+  pdf.setLineWidth(0.6);
+  pdf.line(36, startY, pageW - 36, startY);
+
+  pdf.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(10);
+  pdf.text('Signed by / تم التوقيع بواسطة', 36, startY + 16);
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9);
+  const lines = [
+    `Signer: ${borrower.signer.fullName}`,
+    `National ID: ${borrower.signer.nationalId}`,
+    `Mobile: ${borrower.signer.mobile}   Email: ${borrower.signer.email}`,
+    `Signed at: ${formatDate(audit.signedAt)}`,
+    `OTP hash: ${fakeSha(audit.otpUsed + ':' + audit.docId + ':' + borrower.id)}`,
+  ];
+  lines.forEach((l, i) => pdf.text(l, 36, startY + 32 + i * 12));
+
+  if (audit.signatureDataUrl) {
+    try {
+      pdf.addImage(audit.signatureDataUrl, 'PNG', pageW - 196, startY + 14, 160, 70);
+      pdf.setFontSize(8);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text('Signature / التوقيع', pageW - 36, startY + 96, { align: 'right' });
+    } catch {
+      // ignore
     }
-  } catch {
-    // non-critical
+  }
+
+  pdf.setDrawColor(200, 200, 200);
+  pdf.line(36, pageH - 30, pageW - 36, pageH - 30);
+  pdf.setFontSize(8);
+  pdf.setTextColor(150, 150, 150);
+  pdf.text('© Jyad Capital — Internal Demo Only', 36, pageH - 16);
+  pdf.text('DEMO DATA — NOT LEGALLY BINDING', pageW - 36, pageH - 16, { align: 'right' });
+}
+
+export async function renderContractPdf({ node, borrower, doc, audit }: RenderArgs): Promise<Blob> {
+  if (typeof document !== 'undefined' && 'fonts' in document) {
+    try {
+      await (document as Document & { fonts: { ready: Promise<void> } }).fonts.ready;
+    } catch {
+      // ignore
+    }
   }
 
   const canvas = await html2canvas(node, {
@@ -42,89 +121,56 @@ export async function renderContractPdf(opts: {
     logging: false,
   });
 
-  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
 
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'pt',
-    format: 'a4',
-  });
+  const margin = 36;
+  const headerH = 60;
+  const footerReserve = 170;
+  const availW = pageW - margin * 2;
+  const availH = pageH - headerH - footerReserve - margin;
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-
-  const margin = 28;
-  const headerHeight = 60;
-  const footerHeight = 110;
-
-  pdf.setFillColor(11, 37, 69);
-  pdf.rect(0, 0, pageWidth, headerHeight, 'F');
-  pdf.setTextColor(201, 169, 97);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(20);
-  pdf.text('JYAD CAPITAL', pageWidth - margin, 26, { align: 'right' });
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(9);
-  pdf.text('Internal Signing Platform — DEMO', pageWidth - margin, 44, { align: 'right' });
-  pdf.setFontSize(8);
-  pdf.text(`Doc ID: ${doc.id}`, margin, 26);
-  pdf.text(`Phase ${doc.phase}`, margin, 44);
-
-  const imgMaxWidth = pageWidth - margin * 2;
-  const imgMaxHeight = pageHeight - headerHeight - footerHeight - margin;
-  const ratio = Math.min(imgMaxWidth / canvas.width, imgMaxHeight / canvas.height);
-  const imgW = canvas.width * ratio;
-  const imgH = canvas.height * ratio;
-  const imgX = (pageWidth - imgW) / 2;
-  const imgY = headerHeight + 12;
-  pdf.addImage(imgData, 'PNG', imgX, imgY, imgW, imgH, undefined, 'FAST');
-
-  const footerTop = pageHeight - footerHeight;
-  pdf.setDrawColor(229, 231, 235);
-  pdf.line(margin, footerTop, pageWidth - margin, footerTop);
-
-  pdf.setFontSize(9);
-  pdf.setTextColor(11, 37, 69);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('Signer / الموقّع', pageWidth - margin, footerTop + 16, { align: 'right' });
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8);
-  pdf.text(`Name: ${borrower.signer.fullName}`, pageWidth - margin, footerTop + 30, { align: 'right' });
-  pdf.text(`National ID: ${borrower.signer.nationalId}`, pageWidth - margin, footerTop + 42, { align: 'right' });
-  pdf.text(`Mobile: ${borrower.signer.mobile}  |  Email: ${borrower.signer.email}`, pageWidth - margin, footerTop + 54, { align: 'right' });
-  pdf.text(`Signed at: ${new Date(audit.signedAt).toLocaleString('en-GB')}`, pageWidth - margin, footerTop + 66, { align: 'right' });
-  pdf.text(`OTP hash: ${fakeOtpHash(audit.otpUsed)}`, pageWidth - margin, footerTop + 78, { align: 'right' });
-
-  if (audit.signatureDataUrl) {
-    try {
-      pdf.addImage(audit.signatureDataUrl, 'PNG', margin, footerTop + 14, 160, 60);
-      pdf.setFontSize(7);
-      pdf.setTextColor(107, 114, 128);
-      pdf.text('Signature', margin, footerTop + 84);
-    } catch {
-      // signature rendering is non-critical
-    }
+  const imgRatio = canvas.height / canvas.width;
+  let drawW = availW;
+  let drawH = drawW * imgRatio;
+  if (drawH > availH) {
+    drawH = availH;
+    drawW = drawH / imgRatio;
   }
 
-  pdf.setTextColor(220, 38, 38);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(48);
-  pdf.text('DEMO — NOT LEGALLY BINDING', pageWidth / 2, pageHeight / 2, {
-    align: 'center',
-    angle: 30,
-  });
+  const img = canvas.toDataURL('image/png');
+
+  drawHeader(pdf, pageW, doc);
+  pdf.addImage(
+    img,
+    'PNG',
+    (pageW - drawW) / 2,
+    headerH + 10,
+    drawW,
+    drawH,
+    undefined,
+    'FAST',
+  );
+  drawFooter(pdf, pageW, pageH, borrower, audit);
+  drawWatermark(pdf, pageW, pageH);
 
   return pdf.output('blob');
 }
 
-export function downloadBlob(blob: Blob, filename: string): void {
+export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 0);
+}
+
+export function pdfFilename(doc: ContractDoc, borrower: Borrower): string {
+  return `${sanitize(doc.title)}__${sanitize(borrower.company.name)}.pdf`;
 }

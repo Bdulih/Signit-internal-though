@@ -20,18 +20,40 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.92) translateY(8px); }
+  60% { opacity: 1; transform: scale(1.02) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@layer utilities {
+  .animate-fade-in { animation: fade-in 0.18s ease-out; }
+  .animate-pop { animation: pop 0.35s cubic-bezier(0.18, 1.2, 0.6, 1.05); }
+  .animate-shimmer { animation: shimmer 2.4s infinite; }
+}
+
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-navy text-white font-semibold text-sm shadow-card transition hover:bg-navy-600 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-navy text-white font-semibold text-sm shadow-card transition-all hover:bg-navy-600 hover:shadow-pop active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-accent {
-    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gold text-white font-semibold text-sm shadow-card transition hover:bg-gold-600 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gold text-white font-semibold text-sm shadow-card transition-all hover:bg-gold-600 hover:shadow-pop active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-navy-100 text-navy font-semibold text-sm transition hover:bg-navy-50 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-navy-100 text-navy font-semibold text-sm transition-all hover:bg-navy-50 hover:border-navy-200 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-navy-400 font-semibold text-sm transition hover:bg-navy-50 hover:text-navy active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-navy-400 font-semibold text-sm transition-all hover:bg-navy-50 hover:text-navy active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
   }
   .card {
     @apply bg-white border border-navy-50 rounded-2xl shadow-card;

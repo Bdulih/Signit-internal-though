@@ -46,7 +46,6 @@ export function Done() {
           node: hiddenRef.current,
           borrower,
           doc,
-          audit,
         });
         downloadBlob(blob, pdfFilename(doc, borrower));
       }
@@ -183,6 +182,8 @@ export function Done() {
             ref={hiddenRef}
             borrower={borrower as Borrower}
             doc={renderTarget.doc}
+            audit={renderTarget.audit}
+            withSignature
           />
         )}
       </div>

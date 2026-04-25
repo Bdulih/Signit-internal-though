@@ -16,10 +16,38 @@ export function Done() {
     [borrower],
   );
   const [reDownloading, setReDownloading] = useState<string | null>(null);
+  const [batchDownloading, setBatchDownloading] = useState({ active: false, done: 0, total: 0 });
   const [renderTarget, setRenderTarget] = useState<{ doc: ContractDoc; audit: AuditEntry } | null>(
     null,
   );
   const hiddenRef = useRef<HTMLDivElement | null>(null);
+
+  async function downloadAll() {
+    if (!borrower) return;
+    const auditByDoc = new Map(borrower.auditLog.map((a) => [a.docId, a]));
+    const signedDocs = docs.filter((d) => auditByDoc.has(d.id));
+    setBatchDownloading({ active: true, done: 0, total: signedDocs.length });
+    for (let i = 0; i < signedDocs.length; i++) {
+      const d = signedDocs[i];
+      const audit = auditByDoc.get(d.id);
+      if (!audit) continue;
+      setRenderTarget({ doc: d, audit });
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      await new Promise((r) => setTimeout(r, 60));
+      try {
+        if (hiddenRef.current) {
+          const blob = await renderContractPdf({ node: hiddenRef.current, borrower, doc: d });
+          downloadBlob(blob, pdfFilename(d, borrower));
+        }
+      } catch (err) {
+        console.error('batch download failed for', d.id, err);
+      }
+      setBatchDownloading({ active: true, done: i + 1, total: signedDocs.length });
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    setRenderTarget(null);
+    setBatchDownloading({ active: false, done: 0, total: 0 });
+  }
 
   if (!borrower) {
     return (
@@ -96,6 +124,17 @@ export function Done() {
               >
                 متابعة التوقيع
               </Link>
+            )}
+            {borrower.auditLog.length > 0 && (
+              <button
+                onClick={downloadAll}
+                className="btn-accent"
+                disabled={batchDownloading.active}
+              >
+                {batchDownloading.active
+                  ? `جارٍ التنزيل ${batchDownloading.done}/${batchDownloading.total}…`
+                  : `⬇ تنزيل الكل (${borrower.auditLog.length} PDF)`}
+              </button>
             )}
             <Link
               to={getSession()?.role === 'client' ? '/sign' : '/admin'}

@@ -49,7 +49,7 @@ export function Dashboard() {
           <button onClick={onReseed} className="btn-ghost text-xs" title="إعادة تحميل بيانات تجريبية">
             ↻ بيانات تجريبية
           </button>
-          <Link to="/borrowers/new" className="btn-primary">
+          <Link to="/admin/borrowers/new" className="btn-primary">
             + إنشاء ملف مقترض
           </Link>
         </div>
@@ -129,7 +129,7 @@ function EmptyState() {
       <p className="text-sm text-navy-400 mb-6 max-w-md mx-auto">
         ابدأ بإنشاء ملف مقترض جديد لتوقيع وثائق إصدار الصكوك.
       </p>
-      <Link to="/borrowers/new" className="btn-primary">
+      <Link to="/admin/borrowers/new" className="btn-primary">
         إنشاء ملف مقترض
       </Link>
     </div>
@@ -219,19 +219,19 @@ function BorrowerCard({ borrower, onDelete }: { borrower: Borrower; onDelete: ()
 
       <div className="flex gap-2 pt-1">
         {done ? (
-          <Link to={`/borrowers/${borrower.id}/done`} className="btn-outline flex-1 text-center">
+          <Link to={`/admin/borrowers/${borrower.id}`} className="btn-outline flex-1 text-center">
             عرض السجل
           </Link>
         ) : (
           <>
             <Link
-              to={`/borrowers/${borrower.id}/sign`}
+              to={`/admin/borrowers/${borrower.id}/sign`}
               className={cn('flex-1 text-center', started ? 'btn-accent' : 'btn-primary')}
             >
               {started ? 'متابعة التوقيع' : 'بدء التوقيع'}
             </Link>
             <Link
-              to={`/borrowers/${borrower.id}/done`}
+              to={`/admin/borrowers/${borrower.id}`}
               className="btn-ghost text-sm"
               title="عرض السجل"
             >

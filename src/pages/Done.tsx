@@ -6,6 +6,7 @@ import { ContractDocument } from '@/components/ContractDocument';
 import { downloadBlob, pdfFilename, renderContractPdf } from '@/lib/pdf';
 import type { AuditEntry, Borrower, ContractDoc } from '@/lib/types';
 import { formatDate, maskOtp } from '@/lib/cn';
+import { getSession } from '@/lib/auth';
 
 export function Done() {
   const { id } = useParams<{ id: string }>();
@@ -85,11 +86,21 @@ export function Done() {
           </div>
           <div className="flex gap-2 flex-wrap">
             {!allDone && (
-              <Link to={`/borrowers/${borrower.id}/sign`} className="btn-primary">
+              <Link
+                to={
+                  getSession()?.role === 'client'
+                    ? `/sign/${borrower.id}`
+                    : `/admin/borrowers/${borrower.id}/sign`
+                }
+                className="btn-primary"
+              >
                 متابعة التوقيع
               </Link>
             )}
-            <Link to="/" className="btn-outline">
+            <Link
+              to={getSession()?.role === 'client' ? '/sign' : '/admin'}
+              className="btn-outline"
+            >
               العودة للوحة
             </Link>
           </div>

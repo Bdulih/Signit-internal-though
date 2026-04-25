@@ -13,6 +13,7 @@ import { OtpModal } from '@/components/OtpModal';
 import { SignaturePad } from '@/components/SignaturePad';
 import { cn } from '@/lib/cn';
 import { downloadBlob, pdfFilename, renderContractPdf } from '@/lib/pdf';
+import { getSession } from '@/lib/auth';
 
 type Stage = 'read' | 'otp' | 'sign' | 'processing' | 'success';
 
@@ -61,6 +62,9 @@ export function SignFlow() {
 
   const current = docs[index];
   const progress = countSignableSigned(borrower, docs);
+  const role = getSession()?.role ?? 'staff';
+  const doneHref =
+    role === 'client' ? `/sign/${borrower.id}/done` : `/admin/borrowers/${borrower.id}`;
 
   function advanceTo(updated: Borrower) {
     const nextIdx = nextUnsignedIndex(updated, docs, index + 1);
@@ -219,7 +223,7 @@ export function SignFlow() {
               </button>
             )}
             <Link
-              to={`/borrowers/${borrower.id}/done`}
+              to={doneHref}
               className="btn-ghost w-full text-center text-xs mt-2"
             >
               عرض السجل والمستندات
@@ -284,7 +288,7 @@ export function SignFlow() {
           email={borrower.signer.email}
           allComplete={allComplete}
           onContinue={() => {
-            if (allComplete) nav(`/borrowers/${borrower.id}/done`);
+            if (allComplete) nav(doneHref);
             else setStage('read');
           }}
         />

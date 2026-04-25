@@ -134,7 +134,7 @@ export function NewBorrower() {
       auditLog: [],
     };
     upsertBorrower(b);
-    nav(`/borrowers/${b.id}/sign`);
+    nav(`/admin/borrowers/${b.id}/sign`);
   }
 
   return (
